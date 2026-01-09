@@ -38,8 +38,10 @@ import android.widget.EditText;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.webkit.URLUtil;
 
 import java.util.List;
+import java.net.URLDecoder;
 
 /**
  * The main activity, a clipboard editor
@@ -463,6 +465,14 @@ public class Editor extends Activity {
             // text
             var content = toStringNonNull(clip.getItemAt(0).coerceToText(this));
             if (!toStringNonNull(v_content.getText()).equals(content)) {
+                //decode if text is a valid url
+                if (URLUtil.isValidUrl(content)) {
+                    try {
+                        content = URLDecoder.decode(content, "UTF-8");
+                    } catch (java.io.UnsupportedEncodingException e) {
+                        e.printStackTrace();
+                    }
+                }
                 v_content.setText(content);
                 if (v_content.hasFocus()) v_content.setSelection(v_content.getText().length());
             }
