@@ -40,7 +40,10 @@ jobs:
         id: create_release_keystore
         if: ${{ github.event.inputs.release_key != '' }}
         run: |
-          echo "${{ github.event.inputs.release_key }}" | base64 -d > ./wkspace/app/release.keystore
+          release_key=$(jq -r '.inputs.release_key' $GITHUB_EVENT_PATH)
+          echo "::add-mask::$release_key"
+          echo "release_key=$release_key" >> "$GITHUB_OUTPUT"
+          echo "$release_key" | base64 -d > ./wkspace/app/release.keystore
           echo "release_key_file=$(realpath ./wkspace/app/release.keystore)" >> "$GITHUB_OUTPUT"
 
           release_key_alias=$(jq -r '.inputs.release_key_alias' $GITHUB_EVENT_PATH)
