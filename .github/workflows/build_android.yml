@@ -1,0 +1,89 @@
+name: gradle-android-build-apk
+on:
+  push:
+  #  branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      release_key:
+        description: 'Base64 encoded release keystore file'
+        required: false
+      release_key_password:
+        description: 'Release keystore password'
+        required: false
+      release_key_alias:
+        description: 'Release keystore alias'
+        required: false
+      release_key_alias_password:
+        description: 'Release keystore alias password'
+        required: false
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: wkspace
+          submodules: recursive
+
+      - name: Install Java
+        uses: actions/setup-java@v2
+        with:
+          java-version: "17"
+          distribution: "adopt"
+          cache: "gradle"
+
+      - name: Create artifact directory
+        run: |
+          rm -rf artifacts
+          mkdir -p artifacts
+      
+      - name: Create release keystore file
+        id: create_release_keystore
+        if: ${{ github.event.inputs.release_key != '' }}
+        run: |
+          echo "${{ github.event.inputs.release_key }}" | base64 -d > ./wkspace/app/release.keystore
+          echo "release_key_file=$(realpath ./wkspace/app/release.keystore)" >> "$GITHUB_OUTPUT"
+
+          release_key_alias=$(jq -r '.inputs.release_key_alias' $GITHUB_EVENT_PATH)
+          echo "release_key_alias=$release_key_alias" >> "$GITHUB_OUTPUT"
+
+          release_key_password=$(jq -r '.inputs.release_key_password' $GITHUB_EVENT_PATH)
+          echo "::add-mask::$release_key_password"
+          echo "release_key_password=$release_key_password" >> "$GITHUB_OUTPUT"
+
+          release_key_alias_password=$(jq -r '.inputs.release_key_alias_password' $GITHUB_EVENT_PATH)
+          echo "::add-mask::$release_key_alias_password"
+          echo "release_key_alias_password=$release_key_alias_password" >> "$GITHUB_OUTPUT"
+      
+      - name: Build Android APK
+        working-directory: wkspace/
+        run: |
+          rm -rf build
+          chmod +x ./gradlew
+          ./gradlew --no-daemon build
+          cp app/build/outputs/apk/debug/app-debug.apk ../artifacts/app-debug.apk
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp app/build/outputs/apk/release/app-release-unsigned.apk ../artifacts/app-release-unsigned.apk
+          fi
+
+          if [ -f ${{ steps.create_release_keystore.outputs.release_key_file }} ]; then
+            echo "Building signed release APK"
+            ./gradlew --no-daemon assembleRelease \
+              -Pandroid.injected.signing.store.file=${{ steps.create_release_keystore.outputs.release_key_file }} \
+              -Pandroid.injected.signing.store.password=${{ steps.create_release_keystore.outputs.release_key_password }} \
+              -Pandroid.injected.signing.key.alias=${{ steps.create_release_keystore.outputs.release_key_alias }} \
+              -Pandroid.injected.signing.key.password=${{ steps.create_release_keystore.outputs.release_key_alias_password }}
+          fi
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then 
+            cp app/build/outputs/apk/release/app-release.apk ../artifacts/app-release.apk
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Simple-Android-App-APKs
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 3
