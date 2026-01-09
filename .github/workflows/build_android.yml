@@ -1,7 +1,5 @@
 name: gradle-android-build-apk
 on:
-  push:
-  #  branches: [ master ]
   workflow_dispatch:
     inputs:
       release_key:
@@ -32,7 +30,6 @@ jobs:
         with:
           java-version: "17"
           distribution: "adopt"
-          cache: "gradle"
 
       - name: Create artifact directory
         run: |
